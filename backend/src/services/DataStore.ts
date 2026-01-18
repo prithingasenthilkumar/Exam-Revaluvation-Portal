@@ -20,9 +20,9 @@ export class DataStore {
   private initializeData() {
     // Sample users
     this.users = [
-      { id: '1', email: 'student@test.com', role: 'student', name: 'John Student', studentId: 'STU001' },
-      { id: '2', email: 'examiner@test.com', role: 'examiner', name: 'Dr. Smith' },
-      { id: '3', email: 'admin@test.com', role: 'admin', name: 'Admin User' }
+      { id: '1', email: 'student@university.edu', role: 'student', name: 'John Student', studentId: 'STU001' },
+      { id: '2', email: 'examiner@university.edu', role: 'examiner', name: 'Dr. Smith' },
+      { id: '3', email: 'admin@university.edu', role: 'admin', name: 'Admin User' }
     ];
 
     // Sample requests

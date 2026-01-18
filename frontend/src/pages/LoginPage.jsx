@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   School, 
   ShieldCheck, 
@@ -12,6 +14,8 @@ import {
 } from 'lucide-react';
 
 const LoginPage = () => {
+  const navigate = useNavigate();
+  const { login, loading, error, clearError } = useAuth();
   const [role, setRole] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [credentials, setCredentials] = useState({ identifier: "", password: "" });
@@ -19,19 +23,30 @@ const LoginPage = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setCredentials(prev => ({ ...prev, [name]: value }));
+    if (error) clearError();
   };
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    console.log("Logging in as:", role, credentials);
-    
-    // Navigate based on role
-    if (role === 'student') {
-      window.location.href = '/student/dashboard';
-    } else if (role === 'examiner') {
-      window.location.href = '/examiner/queue';
-    } else if (role === 'admin') {
-      window.location.href = '/admin/dashboard';
+    try {
+      await login(credentials.identifier, credentials.password, role);
+      
+      // Navigate based on role
+      switch (role) {
+        case 'student':
+          navigate('/student/dashboard');
+          break;
+        case 'examiner':
+          navigate('/examiner/queue');
+          break;
+        case 'admin':
+          navigate('/admin/dashboard');
+          break;
+        default:
+          navigate('/');
+      }
+    } catch (err) {
+      // Error handled by context
     }
   };
 
@@ -91,6 +106,13 @@ const LoginPage = () => {
 
           {/* Form */}
           <form onSubmit={handleLogin} className="flex flex-col gap-6">
+            
+            {/* Error Display */}
+            {error && (
+              <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
             
             {/* Role Selection */}
             <div className="flex flex-col gap-2">
@@ -153,9 +175,10 @@ const LoginPage = () => {
 
             <button 
               type="submit"
-              className="w-full h-12 bg-[#137fec] hover:bg-[#137fec]/90 text-white font-bold rounded-lg transition-all shadow-lg shadow-blue-500/20 active:scale-95"
+              disabled={loading}
+              className="w-full h-12 bg-[#137fec] hover:bg-[#137fec]/90 text-white font-bold rounded-lg transition-all shadow-lg shadow-blue-500/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Sign In
+              {loading ? 'Signing in...' : 'Sign In'}
             </button>
 
             {/* SSO Divider */}

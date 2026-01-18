@@ -7,7 +7,7 @@ export class StudentController {
 
   getDashboard = async (req: Request, res: Response): Promise<void> => {
     try {
-      const studentId = req.headers['user-id'] as string || '1';
+      const studentId = req.user?.userId || '1';
       const requests = this.dataStore.getRequestsByStudent(studentId);
       
       const stats = {
@@ -39,7 +39,7 @@ export class StudentController {
 
   getRequests = async (req: Request, res: Response): Promise<void> => {
     try {
-      const studentId = req.headers['user-id'] as string || '1';
+      const studentId = req.user?.userId || '1';
       const { status } = req.query;
       
       let requests = this.dataStore.getRequestsByStudent(studentId);
@@ -68,7 +68,7 @@ export class StudentController {
   getRequestById = async (req: Request, res: Response): Promise<void> => {
     try {
       const { id } = req.params;
-      const studentId = req.headers['user-id'] as string || '1';
+      const studentId = req.user?.userId || '1';
       
       const request = this.dataStore.getRequestById(id);
       
@@ -98,7 +98,7 @@ export class StudentController {
   createRequest = async (req: Request, res: Response): Promise<void> => {
     try {
       const { subject, examDate, reason, originalMarks }: CreateRequestPayload = req.body;
-      const studentId = req.headers['user-id'] as string || '1';
+      const studentId = req.user?.userId || '1';
       const user = this.dataStore.findUserById(studentId);
 
       const newRequest = this.dataStore.createRequest({
@@ -130,7 +130,7 @@ export class StudentController {
   updateRequest = async (req: Request, res: Response): Promise<void> => {
     try {
       const { id } = req.params;
-      const studentId = req.headers['user-id'] as string || '1';
+      const studentId = req.user?.userId || '1';
       const updates = req.body;
       
       const existingRequest = this.dataStore.getRequestById(id);
@@ -175,7 +175,7 @@ export class StudentController {
   deleteRequest = async (req: Request, res: Response): Promise<void> => {
     try {
       const { id } = req.params;
-      const studentId = req.headers['user-id'] as string || '1';
+      const studentId = req.user?.userId || '1';
       
       const request = this.dataStore.getRequestById(id);
       

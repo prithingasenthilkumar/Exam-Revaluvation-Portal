@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import ApiService from '../services/api';
 import { 
   LayoutDashboard, 
   Users, 
@@ -14,27 +15,73 @@ import {
   TrendingUp,
   UserCheck,
   Clock,
-  CheckCircle
+  CheckCircle,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [dashboardData, setDashboardData] = useState({
+    stats: {
+      total: 0,
+      submitted: 0,
+      under_review: 0,
+      approved: 0,
+      rejected: 0
+    },
+    recentRequests: []
+  });
   const [searchQuery, setSearchQuery] = useState('');
 
-  const stats = [
-    { label: 'Total Users', value: '2,847', trend: '+12%', icon: <Users size={20} />, color: 'text-blue-600' },
-    { label: 'Active Requests', value: '124', trend: '+5%', icon: <FileText size={20} />, color: 'text-orange-600' },
-    { label: 'Completed Today', value: '45', trend: '+18%', icon: <CheckCircle size={20} />, color: 'text-green-600' },
-    { label: 'System Health', value: '99.8%', trend: '+0.2%', icon: <Shield size={20} />, color: 'text-purple-600' },
-  ];
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
 
-  const recentActivity = [
-    { id: 1, type: 'User Registration', user: 'John Doe', time: '2 minutes ago', status: 'completed' },
-    { id: 2, type: 'Request Submitted', user: 'Jane Smith', time: '5 minutes ago', status: 'pending' },
-    { id: 3, type: 'Examiner Assigned', user: 'Dr. Wilson', time: '10 minutes ago', status: 'completed' },
-    { id: 4, type: 'System Backup', user: 'System', time: '1 hour ago', status: 'completed' },
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const response = await ApiService.getAdminDashboard();
+      if (response.success) {
+        setDashboardData(response.data);
+      } else {
+        setError(response.error || "Failed to fetch dashboard data");
+      }
+    } catch (err) {
+      setError(err.message || "An error occurred while fetching data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#f6f7f8] dark:bg-[#101922]">
+        <Loader2 className="animate-spin text-primary" size={48} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#f6f7f8] dark:bg-[#101922] text-red-500 gap-4">
+        <AlertCircle size={48} />
+        <p className="text-xl font-bold">{error}</p>
+        <button onClick={fetchDashboardData} className="bg-primary text-white px-4 py-2 rounded-lg">
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  const stats = [
+    { label: 'Total Requests', value: dashboardData.stats.total.toLocaleString(), trend: '+0%', icon: <FileText size={20} />, color: 'text-blue-600' },
+    { label: 'Pending Reviews', value: (dashboardData.stats.submitted + dashboardData.stats.under_review).toLocaleString(), trend: '+0%', icon: <Clock size={20} />, color: 'text-orange-600' },
+    { label: 'Approved', value: dashboardData.stats.approved.toLocaleString(), trend: '+0%', icon: <CheckCircle size={20} />, color: 'text-green-600' },
+    { label: 'Rejected', value: dashboardData.stats.rejected.toLocaleString(), trend: '+0%', icon: <AlertCircle size={20} />, color: 'text-red-600' },
   ];
 
   return (
@@ -45,7 +92,7 @@ const AdminDashboard = () => {
         <div className="flex-1 overflow-y-auto p-8">
           {/* Breadcrumbs */}
           <nav className="flex items-center gap-2 mb-6 text-sm">
-            <span className="font-medium">Admin Dashboard</span>
+            <span className="font-medium text-[#137fec]">Admin Dashboard</span>
           </nav>
 
           {/* Page Header */}
@@ -80,22 +127,45 @@ const AdminDashboard = () => {
 
           {/* Content Grid */}
           <div className="grid grid-cols-1 gap-8">
-            {/* Recent Activity */}
+            {/* Recent Requests acting as Activity Logs */}
             <div className="bg-white dark:bg-gray-800 border border-[#dbe0e6] dark:border-gray-700 rounded-xl p-6 shadow-sm">
-              <h3 className="text-lg font-bold mb-4">Recent Activity</h3>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-bold">Recent Requests</h3>
+                <button className="text-sm font-semibold text-[#137fec] hover:underline">View All</button>
+              </div>
               <div className="space-y-4">
-                {recentActivity.map((activity) => (
-                  <div key={activity.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className={`size-2 rounded-full ${activity.status === 'completed' ? 'bg-green-500' : 'bg-orange-500'}`}></div>
+                {dashboardData.recentRequests.map((request) => (
+                  <div key={request.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className={`p-2 rounded-lg ${
+                        request.status === 'approved' ? 'bg-green-100 text-green-600' : 
+                        request.status === 'rejected' ? 'bg-red-100 text-red-600' :
+                        request.status === 'under_review' ? 'bg-yellow-100 text-yellow-600' : 'bg-blue-100 text-blue-600'
+                      }`}>
+                        <FileText size={20} />
+                      </div>
                       <div>
-                        <p className="text-sm font-medium">{activity.type}</p>
-                        <p className="text-xs text-[#617589] dark:text-gray-400">{activity.user}</p>
+                        <p className="text-sm font-bold">{request.studentName}</p>
+                        <p className="text-xs text-[#617589] dark:text-gray-400">{request.subject} - {request.id}</p>
                       </div>
                     </div>
-                    <span className="text-xs text-[#617589] dark:text-gray-400">{activity.time}</span>
+                    <div className="text-right">
+                      <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${
+                        request.status === 'approved' ? 'text-green-600' : 
+                        request.status === 'rejected' ? 'text-red-600' :
+                        request.status === 'under_review' ? 'text-yellow-600' : 'text-blue-600'
+                      }`}>
+                        {request.status.replace('_', ' ')}
+                      </p>
+                      <p className="text-[10px] text-[#617589] dark:text-gray-400">{new Date(request.createdAt).toLocaleDateString()}</p>
+                    </div>
                   </div>
                 ))}
+                {dashboardData.recentRequests.length === 0 && (
+                  <div className="text-center py-8 text-[#617589]">
+                    No recent activity to show.
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -104,16 +174,6 @@ const AdminDashboard = () => {
     </div>
   );
 };
-
-const NavItem = ({ icon, label, active = false, onClick }) => (
-  <button 
-    onClick={onClick}
-    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${active ? 'bg-[#137fec]/10 text-[#137fec] font-semibold' : 'text-[#617589] dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
-  >
-    {icon}
-    <span className="text-sm">{label}</span>
-  </button>
-);
 
 const StatCard = ({ label, value, trend, icon, color }) => (
   <div className="bg-white dark:bg-gray-800 border border-[#dbe0e6] dark:border-gray-700 rounded-xl p-6 shadow-sm">

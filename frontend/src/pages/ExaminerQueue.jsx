@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import ApiService from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   MenuBook, 
   LayoutDashboard, 
@@ -15,26 +17,74 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  MoreVertical
+  MoreVertical,
+  Loader2
 } from 'lucide-react';
 
 const ExaminerQueue = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [queueData, setQueueData] = useState({
+    pending: [],
+    underReview: [],
+    totalPending: 0,
+    totalUnderReview: 0
+  });
+
+  useEffect(() => {
+    fetchQueue();
+  }, []);
+
+  const fetchQueue = async () => {
+    try {
+      setLoading(true);
+      const response = await ApiService.getExaminerQueue();
+      if (response.success) {
+        setQueueData(response.data);
+      } else {
+        setError(response.error || "Failed to fetch queue");
+      }
+    } catch (err) {
+      setError(err.message || "An error occurred while fetching the queue");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const allRequests = [...queueData.pending, ...queueData.underReview];
+
+  const filteredRequests = allRequests.filter(req => 
+    req.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    req.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    req.courseName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const stats = [
-    { label: "Total Pending", value: "124", trend: "+5%", trendColor: "text-blue-600 bg-blue-100" },
-    { label: "Overdue", value: "12", trend: "-2%", trendColor: "text-red-600 bg-red-100" },
-    { label: "Completed Today", value: "45", trend: "+10%", trendColor: "text-green-600 bg-green-100" },
+    { label: "Total Pending", value: queueData.totalPending.toString(), trend: "+0%", trendColor: "text-blue-600 bg-blue-100" },
+    { label: "Under Review", value: queueData.totalUnderReview.toString(), trend: "+0%", trendColor: "text-yellow-600 bg-yellow-100" },
+    { label: "Total Active", value: (queueData.totalPending + queueData.totalUnderReview).toString(), trend: "+0%", trendColor: "text-green-600 bg-green-100" },
   ];
 
-  const requests = [
-    { id: "SID-2024-0012", student: "Alex J. Rivera", course: "CS402: Advanced Algorithms", dept: "Computer Science", date: "Oct 24, 2024", status: "Pending", priority: "High" },
-    { id: "SID-2024-0015", student: "Sarah Miller", course: "ENG102: Structural Mechanics", dept: "Civil Engineering", date: "Oct 25, 2024", status: "In Progress", priority: "Medium" },
-    { id: "SID-2024-0021", student: "David Wilson", course: "MATH301: Linear Algebra", dept: "Mathematics", date: "Oct 26, 2024", status: "Pending", priority: "Low" },
-    { id: "SID-2024-0028", student: "Emily Thorne", course: "CS101: Intro to Computing", dept: "Computer Science", date: "Oct 26, 2024", status: "Urgent", priority: "High" },
-  ];
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="animate-spin text-primary" size={48} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen text-red-500">
+        <p>{error}</p>
+        <button onClick={fetchQueue} className="ml-4 underline">Retry</button>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-[#f6f7f8] dark:bg-[#101922] min-h-screen flex font-sans text-gray-900 dark:text-white">
@@ -69,10 +119,10 @@ const ExaminerQueue = () => {
 
         <div className="p-4 border-t border-gray-200 dark:border-gray-800">
           <div className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg cursor-pointer">
-            <img className="size-9 rounded-full" src="https://api.dicebear.com/7.x/avataaars/svg?seed=Robert" alt="Avatar" />
+            <img className="size-9 rounded-full" src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'Robert'}`} alt="Avatar" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold truncate">Dr. Robert Chen</p>
-              <p className="text-xs text-gray-500 truncate">Senior Examiner</p>
+              <p className="text-sm font-semibold truncate">{user?.name || 'Dr. Robert Chen'}</p>
+              <p className="text-xs text-gray-500 truncate">{user?.role === 'examiner' ? 'Senior Examiner' : 'Staff'}</p>
             </div>
             <ChevronDown size={16} className="text-gray-400" />
           </div>
@@ -156,27 +206,27 @@ const ExaminerQueue = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                  {requests.map((req, i) => (
-                    <tr key={i} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+                  {filteredRequests.map((req, i) => (
+                    <tr key={req.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <input type="checkbox" className="rounded text-primary" />
                           <div>
                             <p className="text-sm font-semibold">{req.id}</p>
-                            <p className="text-xs text-gray-500">{req.student}</p>
+                            <p className="text-xs text-gray-500">{req.studentName}</p>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm">
-                        <p className="font-medium">{req.course}</p>
-                        <p className="text-xs text-gray-500">{req.dept}</p>
+                        <p className="font-medium">{req.courseName}</p>
+                        <p className="text-xs text-gray-500">{req.department || 'N/A'}</p>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{req.date}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{req.examDate}</td>
                       <td className="px-6 py-4">
                         <StatusBadge status={req.status} />
                       </td>
                       <td className="px-6 py-4">
-                        <PriorityBadge priority={req.priority} />
+                        <PriorityBadge priority={req.priority || 'Medium'} />
                       </td>
                       <td className="px-6 py-4 text-right">
                         <button 
@@ -188,18 +238,23 @@ const ExaminerQueue = () => {
                       </td>
                     </tr>
                   ))}
+                  {filteredRequests.length === 0 && (
+                    <tr>
+                      <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                        No requests found matching your search.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
 
             {/* Pagination */}
             <div className="px-6 py-4 bg-gray-50 dark:bg-gray-800/50 flex items-center justify-between border-t border-gray-200 dark:border-gray-800">
-              <p className="text-sm text-gray-500">Showing <span className="font-bold">1</span> to <span className="font-bold">10</span> of <span className="font-bold">124</span></p>
+              <p className="text-sm text-gray-500">Showing <span className="font-bold">{filteredRequests.length > 0 ? 1 : 0}</span> to <span className="font-bold">{filteredRequests.length}</span> of <span className="font-bold">{filteredRequests.length}</span></p>
               <div className="flex gap-1">
                 <PaginationButton icon={<ChevronLeft size={16}/>} />
                 <PaginationButton label="1" active />
-                <PaginationButton label="2" />
-                <PaginationButton label="3" />
                 <PaginationButton icon={<ChevronRight size={16}/>} />
               </div>
             </div>
@@ -223,11 +278,20 @@ const SidebarLink = ({ icon, label, active = false, onClick }) => (
 
 const StatusBadge = ({ status }) => {
   const styles = {
-    "Pending": "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-    "In Progress": "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
-    "Urgent": "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+    "submitted": "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+    "under_review": "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
+    "approved": "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+    "rejected": "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
   };
-  return <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${styles[status]}`}>{status}</span>;
+  
+  const labels = {
+    "submitted": "Pending",
+    "under_review": "In Progress",
+    "approved": "Approved",
+    "rejected": "Rejected"
+  };
+
+  return <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${styles[status] || styles["submitted"]}`}>{labels[status] || status}</span>;
 };
 
 const PriorityBadge = ({ priority }) => {
@@ -240,7 +304,7 @@ const PriorityBadge = ({ priority }) => {
 };
 
 const PaginationButton = ({ label, icon, active = false }) => (
-  <button className={`size-8 flex items-center justify-center rounded border transition-colors ${active ? 'bg-primary border-primary text-white font-bold' : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-50'}`}>
+  <button className={`size-8 flex items-center justify-center rounded border transition-colors ${active ? 'bg-[#137fec] border-[#137fec] text-white font-bold' : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-50'}`}>
     {label || icon}
   </button>
 );

@@ -1,210 +1,139 @@
-const API_BASE_URL = 'http://localhost:5000/api/v1';
+import axios from 'axios';
 
-// Types
-interface ApiResponse<T = any> {
-  success: boolean;
-  data?: T;
-  message?: string;
-  error?: string;
-}
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
-interface LoginCredentials {
-  email: string;
-  password: string;
-  role: 'student' | 'examiner' | 'admin';
-}
-
-interface CreateRequestPayload {
-  subject: string;
-  examDate: string;
-  reason: string;
-  originalMarks?: number;
-}
-
-// API Service Class
 class ApiService {
-  private getHeaders(includeAuth = false): HeadersInit {
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
+  constructor() {
+    this.api = axios.create({
+      baseURL: API_BASE_URL,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
 
-    if (includeAuth) {
-      const token = localStorage.getItem('authToken');
-      const userId = localStorage.getItem('userId');
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      if (userId) headers['user-id'] = userId;
-    }
+    // Request interceptor to add token
+    this.api.interceptors.request.use(
+      (config) => {
+        const token = localStorage.getItem('token');
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
 
-    return headers;
+    // Response interceptor for error handling
+    this.api.interceptors.response.use(
+      (response) => response.data,
+      (error) => {
+        if (error.response?.status === 401) {
+          this.clearToken();
+          window.location.href = '/login';
+        }
+        return Promise.reject(error.response?.data || error.message);
+      }
+    );
   }
 
-  private async handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
-    const data = await response.json();
+  setToken(token) {
+    localStorage.setItem('token', token);
+  }
+
+  clearToken() {
+    localStorage.removeItem('token');
+  }
+
+  // Auth endpoints
+  async login(email, password, role) {
+    const data = await this.api.post('/auth/login', { email, password, role });
     
-    if (!response.ok) {
-      throw new Error(data.error || data.message || 'Request failed');
+    if (data.success && data.data.token) {
+      this.setToken(data.data.token);
     }
     
     return data;
   }
 
-  // Auth endpoints
-  async login(credentials: LoginCredentials): Promise<ApiResponse> {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(credentials)
-    });
-    
-    const result = await this.handleResponse(response);
-    
-    // Store auth data
-    if (result.success && result.data) {
-      localStorage.setItem('authToken', result.data.token);
-      localStorage.setItem('userId', result.data.user.id);
-      localStorage.setItem('userRole', result.data.user.role);
-      localStorage.setItem('userName', result.data.user.name);
+  async logout() {
+    try {
+      await this.api.post('/auth/logout');
+    } finally {
+      this.clearToken();
     }
-    
-    return result;
   }
 
-  async logout(): Promise<ApiResponse> {
-    const response = await fetch(`${API_BASE_URL}/auth/logout`, {
-      method: 'POST',
-      headers: this.getHeaders(true)
-    });
-    
-    const result = await this.handleResponse(response);
-    
-    // Clear auth data
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('userId');
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('userName');
-    
-    return result;
+  async validateToken() {
+    return this.api.get('/auth/validate');
   }
 
   // Student endpoints
-  async getStudentDashboard(): Promise<ApiResponse> {
-    const response = await fetch(`${API_BASE_URL}/student/dashboard`, {
-      headers: this.getHeaders(true)
-    });
-    return this.handleResponse(response);
+  async getStudentDashboard() {
+    return this.api.get('/student/dashboard');
   }
 
-  async getStudentRequests(status?: string): Promise<ApiResponse> {
-    const url = status 
-      ? `${API_BASE_URL}/student/requests?status=${status}`
-      : `${API_BASE_URL}/student/requests`;
-    
-    const response = await fetch(url, {
-      headers: this.getHeaders(true)
-    });
-    return this.handleResponse(response);
+  async getStudentRequests(status = null) {
+    const params = status ? { status } : {};
+    return this.api.get('/student/requests', { params });
   }
 
-  async getRequestById(id: string): Promise<ApiResponse> {
-    const response = await fetch(`${API_BASE_URL}/student/requests/${id}`, {
-      headers: this.getHeaders(true)
-    });
-    return this.handleResponse(response);
+  async getRequestById(id) {
+    return this.api.get(`/student/requests/${id}`);
   }
 
-  async createRequest(payload: CreateRequestPayload): Promise<ApiResponse> {
-    const response = await fetch(`${API_BASE_URL}/student/requests`, {
-      method: 'POST',
-      headers: this.getHeaders(true),
-      body: JSON.stringify(payload)
-    });
-    return this.handleResponse(response);
+  async createRequest(requestData) {
+    return this.api.post('/student/requests', requestData);
   }
 
-  async updateRequest(id: string, payload: Partial<CreateRequestPayload>): Promise<ApiResponse> {
-    const response = await fetch(`${API_BASE_URL}/student/requests/${id}`, {
-      method: 'PUT',
-      headers: this.getHeaders(true),
-      body: JSON.stringify(payload)
-    });
-    return this.handleResponse(response);
+  async updateRequest(id, updates) {
+    return this.api.put(`/student/requests/${id}`, updates);
   }
 
-  async deleteRequest(id: string): Promise<ApiResponse> {
-    const response = await fetch(`${API_BASE_URL}/student/requests/${id}`, {
-      method: 'DELETE',
-      headers: this.getHeaders(true)
-    });
-    return this.handleResponse(response);
+  async deleteRequest(id) {
+    return this.api.delete(`/student/requests/${id}`);
   }
 
   // Examiner endpoints
-  async getExaminerQueue(): Promise<ApiResponse> {
-    const response = await fetch(`${API_BASE_URL}/examiner/queue`, {
-      headers: this.getHeaders(true)
-    });
-    return this.handleResponse(response);
+  async getExaminerQueue() {
+    return this.api.get('/examiner/queue');
   }
 
-  async getExaminerRequestDetail(id: string): Promise<ApiResponse> {
-    const response = await fetch(`${API_BASE_URL}/examiner/requests/${id}`, {
-      headers: this.getHeaders(true)
-    });
-    return this.handleResponse(response);
+  async getExaminerRequestById(id) {
+    return this.api.get(`/examiner/requests/${id}`);
   }
 
-  async updateExaminerRequest(id: string, payload: {
-    status: 'under_review' | 'approved' | 'rejected';
-    examinerComments?: string;
-    revisedMarks?: number;
-  }): Promise<ApiResponse> {
-    const response = await fetch(`${API_BASE_URL}/examiner/requests/${id}`, {
-      method: 'PUT',
-      headers: this.getHeaders(true),
-      body: JSON.stringify(payload)
-    });
-    return this.handleResponse(response);
+  // Alias for the requested endpoint in prompt
+  async getRevaluationDetail(requestId) {
+    return this.api.get(`/examiner/requests/${requestId}`);
   }
 
-  async getCompletedRequests(): Promise<ApiResponse> {
-    const response = await fetch(`${API_BASE_URL}/examiner/completed`, {
-      headers: this.getHeaders(true)
+  async reviewRequest(id, decision, comments, newMarks = null) {
+    return this.api.put(`/examiner/requests/${id}`, {
+      status: decision,
+      examinerComments: comments,
+      revisedMarks: newMarks,
     });
-    return this.handleResponse(response);
+  }
+
+  // Alias for the requested endpoint in prompt
+  async submitReview(requestId, decisionData) {
+    return this.api.put(`/examiner/requests/${requestId}`, decisionData);
   }
 
   // Admin endpoints
-  async getAdminDashboard(): Promise<ApiResponse> {
-    const response = await fetch(`${API_BASE_URL}/admin/dashboard`, {
-      headers: this.getHeaders(true)
+  async getAdminDashboard() {
+    return this.api.get('/admin/dashboard');
+  }
+
+  async getAllRequests() {
+    return this.api.get('/admin/requests');
+  }
+
+  async assignExaminer(requestId, examinerId) {
+    return this.api.post(`/admin/requests/${requestId}/assign`, {
+      examinerId,
     });
-    return this.handleResponse(response);
-  }
-
-  async getAllRequests(status?: string): Promise<ApiResponse> {
-    const url = status 
-      ? `${API_BASE_URL}/admin/requests?status=${status}`
-      : `${API_BASE_URL}/admin/requests`;
-    
-    const response = await fetch(url, {
-      headers: this.getHeaders(true)
-    });
-    return this.handleResponse(response);
-  }
-
-  // Utility methods
-  isAuthenticated(): boolean {
-    return !!localStorage.getItem('authToken');
-  }
-
-  getCurrentUser() {
-    return {
-      id: localStorage.getItem('userId'),
-      role: localStorage.getItem('userRole'),
-      name: localStorage.getItem('userName')
-    };
   }
 }
 
-export const apiService = new ApiService();
-export default apiService;
+export default new ApiService();

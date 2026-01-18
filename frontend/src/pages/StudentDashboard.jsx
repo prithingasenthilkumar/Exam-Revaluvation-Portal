@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import apiService from '../services/api';
 import { 
   LayoutDashboard, 
   History, 
@@ -13,27 +15,96 @@ import {
   FileEdit, 
   Info,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  AlertCircle,
+  LogOut
 } from 'lucide-react';
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [dashboardData, setDashboardData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const stats = [
-    { label: 'Total Requests', value: '05', badge: '+2 this month', badgeType: 'success' },
-    { label: 'Active Processing', value: '02', badge: 'Under Review', badgeType: 'primary' },
-    { label: 'Results Published', value: '03', badge: 'Historical', badgeType: 'neutral' },
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const response = await apiService.getStudentDashboard();
+      if (response.success) {
+        setDashboardData(response.data);
+      } else {
+        throw new Error(response.error || 'Failed to fetch dashboard data');
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#f6f7f8] dark:bg-[#101922] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#137fec] mx-auto mb-4"></div>
+          <p className="text-[#617589] dark:text-gray-400">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#f6f7f8] dark:bg-[#101922] flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <p className="text-red-600 mb-4">{error}</p>
+          <button 
+            onClick={fetchDashboardData}
+            className="px-4 py-2 bg-[#137fec] text-white rounded-lg hover:bg-[#137fec]/90"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const stats = dashboardData?.stats || {
+    total: 0,
+    draft: 0,
+    submitted: 0,
+    under_review: 0,
+    approved: 0,
+    rejected: 0
+  };
+
+  const recentRequests = dashboardData?.recentRequests || [];
+
+  const statsData = [
+    { label: 'Total Requests', value: stats.total.toString().padStart(2, '0'), badge: `${stats.submitted} submitted`, badgeType: 'success' },
+    { label: 'Active Processing', value: stats.under_review.toString().padStart(2, '0'), badge: 'Under Review', badgeType: 'primary' },
+    { label: 'Results Published', value: (stats.approved + stats.rejected).toString().padStart(2, '0'), badge: 'Historical', badgeType: 'neutral' },
   ];
 
-  const requests = [
-    { id: 'RE-2023-005', subject: 'Advanced Mathematics', date: 'Oct 12, 2023', fee: 'Paid', status: 'SUBMITTED' },
-    { id: 'RE-2023-004', subject: 'Quantum Physics', date: 'Oct 05, 2023', fee: 'Paid', status: 'APPROVED' },
-    { id: 'RE-2023-003', subject: 'Organic Chemistry', date: 'Sep 28, 2023', fee: 'Pending', status: 'DRAFT' },
-    { id: 'RE-2023-002', subject: 'Data Structures', date: 'Sep 15, 2023', fee: 'Paid', status: 'REJECTED' },
-  ];
+  const requests = recentRequests;
 
   const getStatusStyles = (status) => {
     switch (status) {
@@ -100,7 +171,7 @@ const StudentDashboard = () => {
 
           {/* Stats Overview */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            {stats.map((stat, idx) => (
+            {statsData.map((stat, idx) => (
               <StatCard key={idx} {...stat} />
             ))}
           </div>

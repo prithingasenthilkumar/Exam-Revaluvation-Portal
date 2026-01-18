@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import apiService from '../services/api';
 import { 
   School, 
   BarChart3, 
@@ -22,6 +23,8 @@ const ReevaluationForm = () => {
     expectedMarks: '',
     reason: '',
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const [files, setFiles] = useState([
     { name: 'exam_paper_scan.pdf', size: '1.2 MB' } // Initial mock file
@@ -45,11 +48,34 @@ const ReevaluationForm = () => {
     setFiles(files.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Submitting Request:', { ...formData, files });
-    alert('Request Submitted Successfully!');
-    navigate('/student/dashboard');
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const requestData = {
+        subject: formData.course,
+        examDate: formData.examDate,
+        reason: formData.reason,
+        originalMarks: parseInt(formData.currentMarks),
+        studentName: formData.studentName,
+        registerNumber: formData.registerNumber
+      };
+      
+      const response = await apiService.createRequest(requestData);
+      
+      if (response.success) {
+        alert('Request Submitted Successfully!');
+        navigate('/student/dashboard');
+      } else {
+        throw new Error(response.error || 'Failed to submit request');
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -67,6 +93,13 @@ const ReevaluationForm = () => {
         {/* Form Card */}
         <div className="bg-white dark:bg-[#1a2632] rounded-xl shadow-sm border border-[#dbe0e6] dark:border-gray-800 p-6 md:p-8">
           <form onSubmit={handleSubmit} className="space-y-10">
+            
+            {/* Error Display */}
+            {error && (
+              <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
             
             {/* Section: Student Information */}
             <FormSection title="Student Information" icon={<User size={20} />}>
@@ -204,8 +237,8 @@ const ReevaluationForm = () => {
               <button type="button" className="w-full sm:w-auto px-6 py-3 rounded-lg border border-[#dbe0e6] dark:border-gray-700 font-semibold hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                 Save as Draft
               </button>
-              <button type="submit" className="w-full sm:w-auto px-10 py-3 rounded-lg bg-[#137fec] text-white font-bold hover:bg-[#137fec]/90 shadow-lg shadow-blue-500/20 transition-transform active:scale-95">
-                Submit Request
+              <button type="submit" disabled={loading} className="w-full sm:w-auto px-10 py-3 rounded-lg bg-[#137fec] text-white font-bold hover:bg-[#137fec]/90 shadow-lg shadow-blue-500/20 transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+                {loading ? 'Submitting...' : 'Submit Request'}
               </button>
             </div>
           </form>

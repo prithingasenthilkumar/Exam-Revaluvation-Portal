@@ -6,6 +6,15 @@ import adminRoutes from './adminRoutes';
 
 const router = Router();
 
+// API information route
+router.get('/', (req, res) => {
+  res.json({
+    message: 'Exam Re-evaluation Portal API',
+    status: 'active',
+    version: '1.0.0'
+  });
+});
+
 // Basic test route
 router.get('/test', (req, res) => {
   res.json({
